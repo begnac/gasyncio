@@ -124,6 +124,12 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
             self.stop_slave_loop()
             self.close()
 
+    def close(self):
+        if self._giteration is not None:
+            GLib.source_remove(self._giteration)
+            self._giteration = None
+        super().close()
+
     def call_at(self, when, callback, *args, context=None):
         self._check_closed()
         if self._debug:
