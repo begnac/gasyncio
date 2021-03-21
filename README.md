@@ -14,7 +14,7 @@ The following should be semantically equivalent:
 
 ```
 policy = asyncio.set_event_loop_policy(gasyncio.GAsyncIOEventLoopPolicy())
-loop = asyncio.get_event_loop().GAsyncIOEventLoop()
+loop = asyncio.get_event_loop()
 loop.start_slave_loop()
 App().run(sys.argv)
 loop.stop_slave_loop()
