@@ -78,6 +78,11 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         GLib.idle_add(self._schedule_giteration)
 
     def start_slave_loop(self):
+        """
+        Prepare loop to be run by the GLib main event loop.
+        asyncio.get_event_loop() and asyncio.get_running_loop() will
+        return self, but self.is_running() will return False.
+        """
         self._check_closed()
         self._check_running()
         self._set_coroutine_origin_tracking(self._debug)
@@ -88,20 +93,29 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         asyncio.events._set_running_loop(self)
 
     def stop_slave_loop(self):
+        """
+        Undo the effects of self.start_slave_loop().
+        """
         asyncio.events._set_running_loop(None)
         self._set_coroutine_origin_tracking(False)
         sys.set_asyncgen_hooks(*self._old_agen_hooks)
 
+    def run_without_glib_until_complete(self, future):
+        """
+        Run loop without the GLib main loop.  This will block the GLib
+        main loop, so only use this for a future that will complete
+        immediately, or when the GLib main loop isn't running.
+        """
+        if asyncio._get_running_loop() is self:
+            asyncio._set_running_loop(None)
+            super().run_until_complete(future)
+            asyncio._set_running_loop(self)
+
     def run_application(self, app, argv):
         """
-        Run a Gio.Application, enslaving the event loop to the GLib main loop.
-
-        While the application is running, asyncio.get_event_loop() and
-        asyncio.get_running_loop() will return self, but self.is_running()
-        will return False.  This is since it is the GLib main loop that runs the
-        show, the event loop does not actually run iteself.
-
-        Once the application is done running, the event loop closes.
+        Run a Gio.Application in a GAsyncIOEventLoop.
+        Calls self.start_slave_loop(), app.run(), self.stop_slave_loop(),
+        and self.close().
         """
         self.start_slave_loop()
         try:
@@ -109,17 +123,6 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         finally:
             self.stop_slave_loop()
             self.close()
-
-    def run_without_glib_until_complete(self, future):
-        """
-        Run loop without the GLib main loop.  This will block the GLib main
-        loop, so only use this for a future that will complete immediately,
-        or when the GLib main loop isn't running.
-        """
-        if asyncio._get_running_loop() is self:
-            asyncio._set_running_loop(None)
-            super().run_until_complete(future)
-            asyncio._set_running_loop(self)
 
     def call_at(self, when, callback, *args, context=None):
         self._check_closed()
