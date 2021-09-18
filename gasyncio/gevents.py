@@ -73,9 +73,13 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
 
 class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
     def __init__(self):
+        self._is_slave = False
         super().__init__(GAsyncIOSelector())
         self._giteration = None
         GLib.idle_add(self._schedule_giteration)
+
+    def is_running(self):
+        return self._is_slave
 
     def start_slave_loop(self):
         """
@@ -91,11 +95,15 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         sys.set_asyncgen_hooks(firstiter=self._asyncgen_firstiter_hook,
                                finalizer=self._asyncgen_finalizer_hook)
         asyncio.events._set_running_loop(self)
+        self._is_slave = True
 
     def stop_slave_loop(self):
         """
         Undo the effects of self.start_slave_loop().
         """
+        if not self._is_slave:
+            raise RuntimeError('This event loop is not running as a slave')
+        self._is_slave = False
         asyncio.events._set_running_loop(None)
         self._set_coroutine_origin_tracking(False)
         sys.set_asyncgen_hooks(*self._old_agen_hooks)
@@ -107,9 +115,11 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         immediately, or when the GLib main loop isn't running.
         """
         if asyncio._get_running_loop() is self:
+            is_slave, self._is_slave = self._is_slave, False
             asyncio._set_running_loop(None)
             super().run_until_complete(future)
             asyncio._set_running_loop(self)
+            self._is_slave = is_slave
 
     def run_application(self, app, argv):
         """
