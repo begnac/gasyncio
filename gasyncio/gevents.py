@@ -26,6 +26,12 @@ import selectors
 import sys
 
 
+if sys.platform == 'win32':
+    _GLib_IOChannel_new_socket = GLib.IOChannel.win32_new_socket
+else:
+    _GLib_IOChannel_new_socket = GLib.IOChannel.unix_new
+
+
 class GAsyncIOSelector(selectors._BaseSelectorImpl):
     def __init__(self):
         super().__init__()
@@ -44,7 +50,7 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
 
     def register(self, fileobj, events, data):
         key = super().register(fileobj, events, data)
-        io_channel = GLib.IOChannel.unix_new(key.fd)
+        io_channel = _GLib_IOChannel_new_socket(key.fd)
         io_channel.set_encoding(None)
         io_channel.set_buffered(False)
         source = GLib.io_add_watch(io_channel, GLib.PRIORITY_DEFAULT, self._events_to_io_condition(events), self._channel_watch_cb, key)
