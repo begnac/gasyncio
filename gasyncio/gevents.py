@@ -154,7 +154,11 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
         timer = asyncio.events.TimerHandle(when, callback, args, self, context)
         if timer._source_traceback:
             del timer._source_traceback[-1]
-        timer._scheduled = GLib.timeout_add((when - self.time()) * 1000, self._timeout_cb, timer)
+        if when < self.time():
+            delay = 0
+        else:
+            delay = (when - self.time()) * 1000
+        timer._scheduled = GLib.timeout_add(delay, self._timeout_cb, timer)
         return timer
 
     def _timer_handle_cancelled(self, timer):
