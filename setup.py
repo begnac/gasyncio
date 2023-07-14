@@ -1,7 +1,5 @@
 # coding: utf-8
 
-import setuptools
+from setuptools import setup
 
-setuptools.setup(
-    packages=setuptools.find_packages(),
-)
+setup()
