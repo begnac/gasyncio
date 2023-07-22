@@ -51,11 +51,11 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
 
     def register(self, fileobj, events, data):
         key = super().register(fileobj, events, data)
+        if key.fd in self._sources:
+            raise RuntimeError
         io_channel = _GLib_IOChannel_new_socket(key.fd)
         io_channel.set_encoding(None)
         io_channel.set_buffered(False)
-        if key.fd in self._sources:
-            raise RuntimeError
         self._sources[key.fd] = GLib.io_add_watch(io_channel, GLib.PRIORITY_DEFAULT, self._events_to_io_condition(events), self._channel_watch_cb, key)
         return key
 
