@@ -19,10 +19,10 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 
 
-from .gevents import GAsyncIOEventLoop, GAsyncIOEventLoopPolicy
+from .gevents import GAsyncIOEventLoop, GAsyncIOEventLoopPolicy, start_slave_loop, stop_slave_loop
 
 
-__all__ = ['GAsyncIOEventLoop', 'GAsyncIOEventLoopPolicy']
+__all__ = ['GAsyncIOEventLoop', 'GAsyncIOEventLoopPolicy', 'start_slave_loop', 'stop_slave_loop']

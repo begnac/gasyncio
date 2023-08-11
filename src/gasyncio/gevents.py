@@ -127,19 +127,6 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
             asyncio._set_running_loop(self)
             self._is_slave = is_slave
 
-    def run_application(self, app, argv):
-        """
-        Run a Gio.Application in a GAsyncIOEventLoop.
-        Calls self.start_slave_loop(), app.run(), self.stop_slave_loop(),
-        and self.close().
-        """
-        self.start_slave_loop()
-        try:
-            app.run(argv)
-        finally:
-            self.stop_slave_loop()
-            self.close()
-
     def close(self):
         if self._giteration is not None:
             GLib.source_remove(self._giteration)
@@ -196,3 +183,16 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
 
 class GAsyncIOEventLoopPolicy(asyncio.events.BaseDefaultEventLoopPolicy):
     _loop_factory = GAsyncIOEventLoop
+
+
+def start_slave_loop():
+    asyncio.set_event_loop_policy(GAsyncIOEventLoopPolicy())
+    loop = asyncio.get_event_loop()
+    loop.start_slave_loop()
+
+
+def stop_slave_loop():
+    loop = asyncio.get_event_loop()
+    loop.stop_slave_loop()
+    loop.close()
+    asyncio.set_event_loop_policy(None)
