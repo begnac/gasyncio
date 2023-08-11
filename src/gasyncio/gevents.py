@@ -24,6 +24,7 @@ from gi.repository import GLib
 import asyncio
 import selectors
 import sys
+import threading
 
 
 if sys.platform == 'win32':
@@ -92,6 +93,7 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         super().__init__(GAsyncIOSelector())
         self._giteration = None
         GLib.idle_add(self._schedule_giteration)
+        self._lock = threading.Lock()
 
     def is_running(self):
         return self._is_slave
@@ -179,7 +181,8 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
     def _schedule_giteration(self):
         if self._giteration is not None:
             return
-        self._giteration = GLib.timeout_add(0, self._giterate)
+        with self._lock:
+            self._giteration = GLib.timeout_add(0, self._giterate)
 
     def _giterate(self):
         self._run_once()
