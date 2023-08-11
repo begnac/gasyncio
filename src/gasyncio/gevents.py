@@ -38,6 +38,7 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
     def __init__(self):
         super().__init__()
         self._sources = {}
+        self._hups = set()
 
     @staticmethod
     def _events_to_io_condition(events):
@@ -54,11 +55,11 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
     def register(self, fileobj, events, data):
         key = super().register(fileobj, events, data)
         if key.fd in self._sources:
-            raise RuntimeError
+            raise KeyError
         io_channel = _GLib_IOChannel_new_socket(key.fd)
         io_channel.set_encoding(None)
         io_channel.set_buffered(False)
-        self._sources[key.fd] = GLib.io_add_watch(io_channel, GLib.PRIORITY_DEFAULT, self._events_to_io_condition(events), self._channel_watch_cb, key)
+        self._sources[key.fd] = GLib.io_add_watch(io_channel, GLib.PRIORITY_DEFAULT, self._events_to_io_condition(events) | GLib.IOCondition.HUP, self._channel_watch_cb, key)
         return key
 
     def unregister(self, fileobj):
@@ -73,10 +74,16 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
             handle_in._run()
         if condition & GLib.IOCondition.OUT:
             handle_out._run()
+        if condition & GLib.IOCondition.HUP:
+            self._hups.add(key)
         return True
 
-    def select(self, timeout):
-        return ()
+    def select(self, timeout=None):
+        ready = []
+        for key in self._hups:
+            ready.append((key, key.events & (selectors.EVENT_READ | selectors.EVENT_WRITE)))
+        self._hups.clear()
+        return ready
 
 
 class GAsyncIOEventLoop(os_events.SelectorEventLoop):
