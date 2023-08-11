@@ -28,8 +28,10 @@ import sys
 
 if sys.platform == 'win32':
     _GLib_IOChannel_new_socket = GLib.IOChannel.win32_new_socket
+    os_events = asyncio.windows_events
 else:
     _GLib_IOChannel_new_socket = GLib.IOChannel.unix_new
+    os_events = asyncio.unix_events
 
 
 class GAsyncIOSelector(selectors._BaseSelectorImpl):
@@ -77,7 +79,7 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
         return ()
 
 
-class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
+class GAsyncIOEventLoop(os_events.SelectorEventLoop):
     def __init__(self):
         self._is_slave = False
         super().__init__(GAsyncIOSelector())
@@ -181,7 +183,7 @@ class GAsyncIOEventLoop(asyncio.selector_events.BaseSelectorEventLoop):
             return False
 
 
-class GAsyncIOEventLoopPolicy(asyncio.events.BaseDefaultEventLoopPolicy):
+class GAsyncIOEventLoopPolicy(os_events.DefaultEventLoopPolicy):
     _loop_factory = GAsyncIOEventLoop
 
 
