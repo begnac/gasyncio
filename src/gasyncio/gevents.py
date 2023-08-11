@@ -179,10 +179,9 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         return handle
 
     def _schedule_giteration(self):
-        if self._giteration is not None:
-            return
         with self._lock:
-            self._giteration = GLib.timeout_add(0, self._giterate)
+            if self._giteration is None:
+                self._giteration = GLib.timeout_add(0, self._giterate)
 
     def _giterate(self):
         self._run_once()
