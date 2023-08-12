@@ -5,9 +5,9 @@ Defines `GAsyncIOEventLoopPolicy` and `GAsyncIOEventLoop`.
 - `gasyncio.start_slave_loop()` will set up the `asyncio` event loop to be
   run by the `GLib` main event loop.
 - `gasyncio.stop_slave_loop()` will undo this.
-- If you want to be sure a quick future is done before the slave loop is
-  stopped (e.g., for cleanup), or if the slave loop is not running, use
-  `loop.run_without_glib_until_complete(future)`.
+- `loop.run_without_glib_until_complete(future)` will run a crippled loop,
+  that can only await futures that are already done: no I/O, timeouts, etc.
+  Useful for cleanup.
 
 The following should be semantically equivalent:
 

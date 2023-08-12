@@ -127,9 +127,9 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
 
     def run_without_glib_until_complete(self, future):
         """
-        Run loop without the GLib main loop.  This will block the GLib
-        main loop, so only use this for a future that will complete
-        immediately, or when the GLib main loop isn't running.
+        Run loop without the GLib main loop.
+        Can only await futures that are already done: no I/O, timeouts, etc.
+        Useful for cleanup.
         """
         if asyncio._get_running_loop() is self:
             is_slave, self._is_slave = self._is_slave, False
