@@ -92,7 +92,7 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._is_slave = False
         super().__init__(GAsyncIOSelector())
         self._giteration = None
-        GLib.idle_add(self._schedule_giteration)
+        self._schedule_giteration
         self._lock = threading.Lock()
 
     def is_running(self):
@@ -125,18 +125,18 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._set_coroutine_origin_tracking(False)
         sys.set_asyncgen_hooks(*self._old_agen_hooks)
 
-    def run_without_glib_until_complete(self, future):
-        """
-        Run loop without the GLib main loop.
-        Can only await futures that are already done: no I/O, timeouts, etc.
-        Useful for cleanup.
-        """
-        if asyncio._get_running_loop() is self:
-            is_slave, self._is_slave = self._is_slave, False
-            asyncio._set_running_loop(None)
-            super().run_until_complete(future)
-            asyncio._set_running_loop(self)
-            self._is_slave = is_slave
+    def run_until_complete(self, future):
+        future = asyncio.tasks.ensure_future(future, loop=self)
+        gloop = GLib.MainLoop.new(None, False)
+
+        def _run_until_complete_cb(task):
+            gloop.quit()
+
+        future.add_done_callback(_run_until_complete_cb)
+        gloop.run()
+        future.remove_done_callback(_run_until_complete_cb)
+        future.exception()
+        return future.result()
 
     def close(self):
         if self._giteration is not None:
