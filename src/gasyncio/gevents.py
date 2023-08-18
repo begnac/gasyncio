@@ -92,7 +92,6 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._is_slave = False
         super().__init__(GAsyncIOSelector())
         self._giteration = None
-        self._schedule_giteration
         self._lock = threading.Lock()
 
     def is_running(self):
