@@ -34,11 +34,18 @@ else:
     _GLib_IOChannel_new_socket = GLib.IOChannel.unix_new
     os_events = asyncio.unix_events
 
+try:
+    defaultPolicyLoop = os_events._DefaultEventLoopPolicy
+except:
+    defaultPolicyLoop = os_events.DefaultEventLoopPolicy
+
 
 class GAsyncIOSelector(selectors._BaseSelectorImpl):
     def __init__(self):
         super().__init__()
         self._sources = {}
+        self._io_channels = {}
+        self._fileobj_preserve = set()
         self._hups = set()
 
     @staticmethod
@@ -57,9 +64,14 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
         key = super().register(fileobj, events, data)
         if key.fd in self._sources:
             raise KeyError
-        io_channel = _GLib_IOChannel_new_socket(key.fd)
-        io_channel.set_encoding(None)
-        io_channel.set_buffered(False)
+        if key.fd in self._io_channels:
+            io_channel = self._io_channels[key.fd]
+        else:
+            io_channel = _GLib_IOChannel_new_socket(key.fd)
+            io_channel.set_encoding(None)
+            io_channel.set_buffered(False)
+            io_channel.set_close_on_unref(False)
+            self._io_channels[key.fd] = io_channel
         self._sources[key.fd] = GLib.io_add_watch(io_channel, GLib.PRIORITY_DEFAULT, self._events_to_io_condition(events) | GLib.IOCondition.HUP, self._channel_watch_cb, key)
         return key
 
@@ -67,7 +79,17 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
         key = super().unregister(fileobj)
         source = self._sources.pop(key.fd)
         GLib.source_remove(source)
+        if not fileobj in self._fileobj_preserve:
+            io_channel = self._io_channels[key.fd]
+            del self._io_channels[key.fd]
+            del io_channel
         return key
+
+    def modify(self, fileobj, events, data=None):
+        self._fileobj_preserve.add(fileobj)
+        ret = super().modify(fileobj, events, data)
+        self._fileobj_preserve.remove(fileobj)
+        return ret
 
     def _channel_watch_cb(self, channel, condition, key):
         handle_in, handle_out = key.data
@@ -86,13 +108,27 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
         self._hups.clear()
         return ready
 
+class NoWaitSelectSelector(selectors.SelectSelector):
+    _schedule_periodic_giterate = True
+
+    def select(self, timeout=None):
+        return super().select(0)
 
 class GAsyncIOEventLoop(os_events.SelectorEventLoop):
-    def __init__(self):
+    UserSelector = None
+
+    def __init__(self, selector=None):
         self._is_slave = False
-        super().__init__(GAsyncIOSelector())
         self._giteration = None
         self._lock = threading.Lock()
+        if selector is None:
+            if GAsyncIOEventLoop.UserSelector is not None:
+                selector = GAsyncIOEventLoop.UserSelector
+            elif sys.platform == 'win32':
+                selector = NoWaitSelectSelector()
+            else:
+                selector = GAsyncIOSelector()
+        super().__init__(selector)
 
     def is_running(self):
         return self._is_slave
@@ -177,6 +213,10 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._schedule_giteration()
         return handle
 
+    def _write_to_self(self):
+        super()._write_to_self()
+        self._schedule_giteration()
+
     def _schedule_giteration(self):
         with self._lock:
             if self._giteration is None:
@@ -186,18 +226,22 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._run_once()
         if self._ready:
             return True
-        else:
-            self._giteration = None
-            return False
+        with self._lock:
+            if getattr(self._selector, '_schedule_periodic_giterate', False):
+                self._giteration = GLib.timeout_add(10, self._giterate)
+            else:
+                self._giteration = None
+        return False
 
 
-class GAsyncIOEventLoopPolicy(os_events.DefaultEventLoopPolicy):
+class GAsyncIOEventLoopPolicy(defaultPolicyLoop):
     _loop_factory = GAsyncIOEventLoop
 
 
-def start_slave_loop():
+def start_slave_loop(selector=None):
+    GAsyncIOEventLoop.UserSelector = selector
     asyncio.set_event_loop_policy(GAsyncIOEventLoopPolicy())
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
     loop.start_slave_loop()
 
 

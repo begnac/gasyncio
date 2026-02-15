@@ -22,7 +22,8 @@
 __version__ = '0.1.1'
 
 
-from .gevents import GAsyncIOEventLoop, GAsyncIOEventLoopPolicy, start_slave_loop, stop_slave_loop
+from .gevents import GAsyncIOSelector, GAsyncIOEventLoop, GAsyncIOEventLoopPolicy, NoWaitSelectSelector, start_slave_loop, stop_slave_loop
+from .threadselector import ThreadSelector
 
 
-__all__ = ['GAsyncIOEventLoop', 'GAsyncIOEventLoopPolicy', 'start_slave_loop', 'stop_slave_loop']
+__all__ = ['GAsyncIOSelector', 'GAsyncIOEventLoop', 'GAsyncIOEventLoopPolicy', 'NoWaitSelectSelector', 'start_slave_loop', 'stop_slave_loop', 'ThreadSelector']
