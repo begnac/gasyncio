@@ -1,29 +1,23 @@
 # gasyncio - A minimalistic asyncio event loop based on the GLib main event loop
 
-Defines `GAsyncIOEventLoopPolicy` and `GAsyncIOEventLoop`.
-
-- `gasyncio.start_slave_loop()` will set up the `asyncio` event loop to be
-  run by the `GLib` main event loop.
-  While the `GLib` main event loop is running, e.g., inside a running
-  `Gio.Application`, code based on `asyncio` will run normally.
-- `gasyncio.stop_slave_loop()` will undo this.
-- `run_until_complete` will execute in its own `GLib.MainLoop`.
-
-The following should be semantically equivalent:
+When used as a context manager, `GAsyncIOEventLoop` sets itself to be run by the
+`GLib` main event loop.
+`GAsyncIOEventLoop.run_until_complete()` will execute in its own `GLib.MainLoop`,
+and can be used for cleanup after the `GLib` main loop has stopped.
 
 ```
-asyncio.set_event_loop_policy(gasyncio.GAsyncIOEventLoopPolicy())
-loop = asyncio.get_event_loop()
-loop.start_slave_loop()
-loop.run_until_complete(asyncio.sleep(1))
-loop.stop_slave_loop()
-loop.close()
-asyncio.set_event_loop_policy(None)
-del loop
+with GAsyncIOEventLoop() as loop:
+  gio_app.run()
+  loop.run_until_complete(cleanup())
 ```
 
+`GAsyncIOApplicationMixin` wraps run() by the context manager, ensuring that the
+slave loop is set up before that `startup` signal and closed after the `shutdown`.
+
 ```
-gasyncio.start_slave_loop()
-asyncio.get_event_loop().run_until_complete(asyncio.sleep(1))
-gasyncio.stop_slave_loop()
+class MyApp(GAsyncIOApplicationMixin, Gio.Application):
+    ...
+
+
+MyApp().run()
 ```

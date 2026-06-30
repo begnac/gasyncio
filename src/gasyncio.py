@@ -27,6 +27,9 @@ import sys
 import threading
 
 
+__version__ = '0.1.2'
+
+
 if sys.platform == 'win32':
     _GLib_IOChannel_new_socket = GLib.IOChannel.win32_new_socket
     os_events = asyncio.windows_events
@@ -89,40 +92,15 @@ class GAsyncIOSelector(selectors._BaseSelectorImpl):
 
 class GAsyncIOEventLoop(os_events.SelectorEventLoop):
     def __init__(self):
-        self._is_slave = False
         super().__init__(GAsyncIOSelector())
         self._giteration = None
         self._lock = threading.Lock()
 
-    def is_running(self):
-        return self._is_slave
+    def __enter__(self):
+        self._run_forever_setup()
 
-    def start_slave_loop(self):
-        """
-        Prepare loop to be run by the GLib main event loop.
-        asyncio.get_event_loop() and asyncio.get_running_loop() will
-        return self, but self.is_running() will return False.
-        """
-        self._check_closed()
-        self._check_running()
-        self._set_coroutine_origin_tracking(self._debug)
-
-        self._old_agen_hooks = sys.get_asyncgen_hooks()
-        sys.set_asyncgen_hooks(firstiter=self._asyncgen_firstiter_hook,
-                               finalizer=self._asyncgen_finalizer_hook)
-        asyncio.events._set_running_loop(self)
-        self._is_slave = True
-
-    def stop_slave_loop(self):
-        """
-        Undo the effects of self.start_slave_loop().
-        """
-        if not self._is_slave:
-            raise RuntimeError('This event loop is not running as a slave')
-        self._is_slave = False
-        asyncio.events._set_running_loop(None)
-        self._set_coroutine_origin_tracking(False)
-        sys.set_asyncgen_hooks(*self._old_agen_hooks)
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._run_forever_cleanup()
 
     def run_until_complete(self, future):
         future = asyncio.tasks.ensure_future(future, loop=self)
@@ -177,6 +155,10 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         self._schedule_giteration()
         return handle
 
+    def call_soon_threadsafe(self, *args):
+        super().call_soon_threadsafe(*args)
+        self._schedule_giteration()
+
     def _schedule_giteration(self):
         with self._lock:
             if self._giteration is None:
@@ -191,18 +173,7 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
             return False
 
 
-class GAsyncIOEventLoopPolicy(os_events.DefaultEventLoopPolicy):
-    _loop_factory = GAsyncIOEventLoop
-
-
-def start_slave_loop():
-    asyncio.set_event_loop_policy(GAsyncIOEventLoopPolicy())
-    loop = asyncio.get_event_loop()
-    loop.start_slave_loop()
-
-
-def stop_slave_loop():
-    loop = asyncio.get_event_loop()
-    loop.stop_slave_loop()
-    loop.close()
-    asyncio.set_event_loop_policy(None)
+class GAsyncIOApplicationMixin:
+    def run(self, argv=None):
+        with GAsyncIOEventLoop():
+            super().run(argv)
