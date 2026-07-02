@@ -27,7 +27,7 @@ import sys
 import threading
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 if sys.platform == 'win32':
