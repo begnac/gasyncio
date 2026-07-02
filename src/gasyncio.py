@@ -95,31 +95,26 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
         super().__init__(GAsyncIOSelector())
         self._giteration = None
         self._lock = threading.Lock()
-
-    def __enter__(self):
         self._run_forever_setup()
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._run_forever_cleanup()
-
-    def run_until_complete(self, future):
-        future = asyncio.tasks.ensure_future(future, loop=self)
-        gloop = GLib.MainLoop.new(None, False)
-
-        def _run_until_complete_cb(task):
-            gloop.quit()
-
-        future.add_done_callback(_run_until_complete_cb)
-        gloop.run()
-        future.remove_done_callback(_run_until_complete_cb)
-        future.exception()
-        return future.result()
-
     def close(self):
+        self._run_forever_cleanup()
         if self._giteration is not None:
             GLib.source_remove(self._giteration)
             self._giteration = None
         super().close()
+
+    @staticmethod
+    def _run_until_complete_cb(task):
+        task._gmainloop.quit()
+
+    def run_until_complete(self, future):
+        task = asyncio.ensure_future(future, loop=self)
+        task.add_done_callback(self._run_until_complete_cb)
+        task._gmainloop = GLib.MainLoop.new(None, False)
+        task._gmainloop.run()
+        task.exception()
+        return task.result()
 
     def call_at(self, when, callback, *args, context=None):
         self._check_closed()
@@ -175,5 +170,5 @@ class GAsyncIOEventLoop(os_events.SelectorEventLoop):
 
 class GAsyncIOApplicationMixin:
     def run(self, argv=None):
-        with GAsyncIOEventLoop():
+        with asyncio.Runner(loop_factory=GAsyncIOEventLoop):
             super().run(argv)
